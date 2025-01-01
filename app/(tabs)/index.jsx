@@ -1,39 +1,63 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, SafeAreaView } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, SafeAreaView, FlatList, Keyboard } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
+import { initDatabase, insertMala, fetchAllMalas, updateMala } from '../../db';
 
 export default function HomeScreen() {
   const [malaCount, setMalaCount] = useState('');
   const [date, setDate] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
+  const [malaList, setMalaList] = useState([]);
+  const [editingId, setEditingId] = useState(null); // Track which entry is being edited
+
   const [stats, setStats] = useState({ totalMalas: 0, totalJaaps: 0, streak: 0 });
 
   useEffect(() => {
-    const loadStats = async () => {
-      const storedStats = await AsyncStorage.getItem('malaStats');
-      if (storedStats) {
-        setStats(JSON.parse(storedStats));
-      }
+    const initialize = async () => {
+      await initDatabase();
+      loadMalas();
     };
-    loadStats();
+    initialize();
   }, []);
 
+  const loadMalas = async () => {
+    const res = await fetchAllMalas();
+    if (res.success) {
+      setMalaList(res.data);
+
+      let totalJaaps = 0
+      let totalMalas = 0
+      let streak = res.data?.length
+
+      res.data.forEach(data => {
+        totalMalas += data.malaCount
+      });
+      totalJaaps = totalMalas * 108
+
+      setStats({
+        totalJaaps, totalMalas, streak
+      })
+    }
+  };
+
   const saveMala = async () => {
-    const newTotalMalas = stats.totalMalas + parseInt(malaCount || 0);
-    const newTotalJaaps = newTotalMalas * 108;
-    const newStreak = stats.streak + 1;
+    if (malaCount.trim() === '') {
+      alert('Please enter a mala count.');
+      return;
+    }
 
-    const updatedStats = {
-      totalMalas: newTotalMalas,
-      totalJaaps: newTotalJaaps,
-      streak: newStreak,
-    };
+    if (editingId) {
+      await updateMala(editingId, parseInt(malaCount), date.toISOString().split('T')[0]);
+      setEditingId(null); // Reset editing state
+    } else {
+      await insertMala(parseInt(malaCount), date.toISOString().split('T')[0]);
+    }
+    Keyboard.dismiss();
 
-    await AsyncStorage.setItem('malaStats', JSON.stringify(updatedStats));
-    setStats(updatedStats);
-    setMalaCount('');
+    setMalaCount(''); // Clear input
+    setDate(new Date()); // Reset date
+    loadMalas(); // Reload data
   };
 
   const onChangeDate = (event, selectedDate) => {
@@ -41,6 +65,22 @@ export default function HomeScreen() {
     setShowPicker(Platform.OS === 'ios'); // Keep picker open for iOS
     setDate(currentDate);
   };
+
+  const handleEdit = (mala) => {
+    setEditingId(mala.id);
+    setMalaCount(mala.malaCount.toString());
+    setDate(new Date(mala.date));
+  };
+
+  const renderRow = ({ item }) => (
+    <View style={styles.tableRow}>
+      <Text style={styles.tableCell}>{item.malaCount}</Text>
+      <Text style={styles.tableCell}>{item.date}</Text>
+      <TouchableOpacity style={styles.editButton} onPress={() => handleEdit(item)}>
+        <Text style={styles.editButtonText}>Edit</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -66,7 +106,7 @@ export default function HomeScreen() {
           />
 
           <TouchableOpacity style={styles.saveButton} onPress={saveMala}>
-            <Text style={styles.saveButtonText}>Save</Text>
+            <Text style={styles.saveButtonText}>{editingId ? 'Update' : 'Save'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -87,6 +127,20 @@ export default function HomeScreen() {
             <Text style={styles.statLabel}>Streak</Text>
           </TouchableOpacity>
         </View>
+
+        <View style={styles.tableHeader}>
+          <Text style={[styles.tableCell, styles.headerCell]}>Malas</Text>
+          <Text style={[styles.tableCell, styles.headerCell]}>Date</Text>
+          <Text style={[styles.tableCell, styles.headerCell]}>Action</Text>
+        </View>
+
+        <FlatList
+          data={malaList}
+          renderItem={renderRow}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={{ paddingBottom: 100 }} // Adjust padding to fit your tab bar
+          style={{ flex: 1 }} // Ensure FlatList takes the remaining space
+        />
       </View>
     </SafeAreaView>
   );
@@ -108,14 +162,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
-  datePicker: {
-    backgroundColor: '#f5d7d5',
-    borderWidth: 1,
-    borderColor: 'orange',
-    borderRadius: 10,
-    padding: 2,
-    color: "#ff7043"
-  },
   form: {
     marginBottom: 30,
   },
@@ -131,15 +177,13 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginBottom: 16,
   },
-  dateInput: {
+  datePicker: {
+    backgroundColor: '#f5d7d5',
     borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 10,
-    borderRadius: 4,
-    marginBottom: 16,
-  },
-  dateText: {
-    color: '#333',
+    borderColor: 'orange',
+    borderRadius: 10,
+    padding: 2,
+    color: "#ff7043",
   },
   saveButton: {
     backgroundColor: '#ff7043',
@@ -163,6 +207,12 @@ const styles = StyleSheet.create({
   statBox: {
     alignItems: 'center',
   },
+  tableHeader: {
+    marginTop: 40,
+    flexDirection: 'row',
+    backgroundColor: '#ff7043',
+    padding: 10,
+  },
   statValue: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -172,5 +222,26 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 14,
     color: '#555',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
+  tableCell: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 14,
+  },
+  editButton: {
+    backgroundColor: '#ff7043',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 4,
+  },
+  editButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });
