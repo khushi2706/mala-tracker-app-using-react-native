@@ -35,6 +35,10 @@ Welcome to **Mala Tracker** aka **Jaap tracker**, a React Native app built with 
    ```bash
    git clone https://github.com/your-username/mala-tracker.git
    cd mala-tracker
+2. Install dependency and start expo 
+   ```bash
+   npm install
+   expo start
 
 ## 🏗️ Contributing
 We welcome contributions from the community! 🎉 Whether it's fixing a bug, adding new features, or improving documentation, I'd love your help.
