@@ -40,6 +40,10 @@ Welcome to **Mala Tracker** aka **Jaap tracker**, a React Native app built with 
    npm install
    expo start
 
+## 🖼️ Snapshot
+![6321122945887485877](https://github.com/user-attachments/assets/a08152d6-fbd1-4c3f-8b3b-bf955fc5601f) ![6321122945887485878](https://github.com/user-attachments/assets/0559f5b1-562d-403d-90c6-8a8ed1a59c37)
+
+
 ## 🏗️ Contributing
 We welcome contributions from the community! 🎉 Whether it's fixing a bug, adding new features, or improving documentation, I'd love your help.
 
